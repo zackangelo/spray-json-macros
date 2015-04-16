@@ -12,6 +12,28 @@ trait AutoProductFormats {
 object AutoProductFormats extends AutoProductFormats
 
 object AutoProductFormatMacros {
+  private val operators = Map(
+    "$eq" -> "=",
+    "$greater" -> ">",
+    "$less" -> "<",
+    "$plus" -> "+",
+    "$minus" -> "-",
+    "$times" -> "*",
+    "$div" -> "/",
+    "$bang" -> "!",
+    "$at" -> "@",
+    "$hash" -> "#",
+    "$percent" -> "%",
+    "$up" -> "^",
+    "$amp" -> "&",
+    "$tilde" -> "~",
+    "$qmark" -> "?",
+    "$bar" -> "|")
+
+  private def unmangle(name: String) = operators.foldLeft(name) { case (n, (mangled, unmangled)) =>
+    if (n.indexOf(mangled) >= 0) n.replace(mangled, unmangled) else n
+  }
+
   private def camelize(word: String): String = {
     val w = pascalize(word)
     w.substring(0, 1).toLowerCase(java.util.Locale.ENGLISH) + w.substring(1)
@@ -102,7 +124,7 @@ object AutoProductFormatMacros {
 
       val identity = Some(paramName)
 
-      Seq(propertyExplicitName, casedName, identity).flatten.head
+      unmangle(Seq(propertyExplicitName, casedName, identity).flatten.head)
     }
 
     def writerDefs = ctorParams.map { p =>
@@ -176,15 +198,17 @@ object AutoProductFormatMacros {
               JsObject(stripped).convertTo[$fieldType]
            """
         case None =>
+          val convertTree = q"jsonFields.fields.get($jsonPropertyName).map(_.convertTo[$fieldType])"
+
           if(paramSymbol.isParamWithDefault) {
+            //FIXME typeSymbol.companion does not work for non-static case classes
             val companion = ttag.typeSymbol.companion
             val defaultMethod = TermName("apply$default$" + (index + 1))
-            q"""jsonFields.fields.get($jsonPropertyName).map { v =>
-              v.convertTo[$fieldType]
-            }.getOrElse($companion.$defaultMethod)
-           """
+            q"""$convertTree.getOrElse($companion.$defaultMethod)"""
+          } else if(paramSymbol.typeSignature <:< typeOf[Option[_]]) {
+            q"""$convertTree.getOrElse(None)"""
           } else {
-            q"""jsonFields.fields($jsonPropertyName).convertTo[$fieldType]"""
+            q"""$convertTree.getOrElse(throw new DeserializationException("Object is missing required member '" + ${jsonPropertyName.toString} + "'"))"""
           }
       }
     }
@@ -213,8 +237,6 @@ object AutoProductFormatMacros {
          }
        }
     """)
-
-    println(f)
 
     f
   }
