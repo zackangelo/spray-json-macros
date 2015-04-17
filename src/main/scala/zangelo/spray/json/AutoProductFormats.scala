@@ -99,6 +99,12 @@ object AutoProductFormatMacros {
       }
     }
 
+    def jsonIgnoreAnnotation(paramName:String):Option[JsonIgnore] = {
+      ctorParamsByName(paramName).annotations.map(_.tree).collectFirst {
+        case x: Apply if x.tpe =:= c.weakTypeOf[JsonIgnore] => JsonIgnore()
+      }
+    }
+
     def jsonUnwrappedAnnotation(paramName:String):Option[JsonUnwrapped] = {
       def parseUnwrappedParam(paramTree:Tree):String = paramTree match {
         case Literal(Constant(c:String)) => c
@@ -143,20 +149,25 @@ object AutoProductFormatMacros {
       val paramName = paramSymbol.name.toString
       val jsonPropertyName = jsonPropertyForParamName(paramName)
       val toJson = q"obj.${paramSymbol.name}.toJson"
+      val emptyList = q"List.empty"
 
-      jsonUnwrappedAnnotation(paramName) match {
-        case Some(unwrapped) =>
-          //TODO apply prefix/suffix at compile time?
-          q"""$toJson.asJsObject.fields.map { e:(String,JsValue) =>
+
+      if(jsonIgnoreAnnotation(paramName).isDefined) {
+        emptyList
+      } else {
+        jsonUnwrappedAnnotation(paramName) match {
+          case Some(unwrapped) =>
+            //TODO apply prefix/suffix at compile time?
+            q"""$toJson.asJsObject.fields.map { e:(String,JsValue) =>
                 (${unwrapped.prefix} + e._1 + ${unwrapped.suffix}) -> e._2
           }.toList"""
-        case None =>
-          val ret = q"""List($jsonPropertyName -> $toJson)"""
-          paramSymbol.typeSignature match {
-            case t if t <:< typeOf[Option[_]] => q"if(obj.${paramSymbol.name}.isDefined) $ret else List.empty"
-            case _ => ret
-          }
-
+          case None =>
+            val ret = q"""List($jsonPropertyName -> $toJson)"""
+            paramSymbol.typeSignature match {
+              case t if t <:< typeOf[Option[_]] => q"if(obj.${paramSymbol.name}.isDefined) $ret else $emptyList"
+              case _ => ret
+            }
+        }
       }
     }
 
@@ -243,8 +254,6 @@ object AutoProductFormatMacros {
          }
        }
     """)
-
-    println(f)
 
     f
   }

@@ -2,7 +2,7 @@ package zangelo.spray.json
 
 import org.specs2.mutable.Specification
 import spray.json._
-import zangelo.spray.json.annotation.{JsonUnwrapped, JsonProperty, JsonPropertyCases, JsonPropertyCase}
+import zangelo.spray.json.annotation._
 
 
 trait TestObject extends Product
@@ -319,5 +319,22 @@ class AutoProductFormatsSpec extends Specification {
       allArgsJson.convertTo[TestAllArgs] shouldEqual allArgsObject
     }
 
+  }
+
+  "A JsonFormat created with `autoProductFormat`, for a case class with @JsonIgnore annotations," should {
+
+    import TestProtocol._
+    
+    case class TestIgnore(@JsonIgnore a:String, b:Int,
+                          @JsonIgnore c:Int, d:String)
+      extends TestObject
+
+
+    val ignoreObject = TestIgnore("a", 42, 5, "d")
+    val ignoreJson   = JsObject("b" -> JsNumber(42), "d" -> JsString("d"))
+
+    "ignore properties with the @JsonIgnore annotation" in {
+      ignoreObject.toJson shouldEqual ignoreJson
+    }
   }
 }
