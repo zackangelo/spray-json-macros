@@ -5,11 +5,9 @@ import spray.json._
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
-trait AutoProductFormats {
-  implicit def implicitAutoProductFormat[T <: Product]:JsonFormat[T] = macro AutoProductFormatMacros.jsonFormatMacro[T]
+trait AutoProductFormats[U <: Product] {
+  implicit def autoProductFormat[T <: U]:RootJsonFormat[T] = macro AutoProductFormatMacros.jsonFormatMacro[T]
 }
-
-object AutoProductFormats extends AutoProductFormats
 
 object AutoProductFormatMacros {
   private val operators = Map(
@@ -57,7 +55,7 @@ object AutoProductFormatMacros {
           word, replacementPattern), replacementPattern), "_").toLowerCase
   }
 
-  def jsonFormatMacro[T <: Product : c.WeakTypeTag](c: blackbox.Context):c.Expr[JsonFormat[T]] = {
+  def jsonFormatMacro[T <: Product : c.WeakTypeTag](c: blackbox.Context):c.Expr[RootJsonFormat[T]] = {
 
     import c.universe._
 
@@ -144,7 +142,7 @@ object AutoProductFormatMacros {
     def writerDefBody(paramSymbol:TermSymbol) = {
       val paramName = paramSymbol.name.toString
       val jsonPropertyName = jsonPropertyForParamName(paramName)
-      val toJson = Select(Select(Ident(TermName("obj")), TermName(paramName)), TermName("toJson"))
+      val toJson = q"obj.${paramSymbol.name}.toJson"
 
       jsonUnwrappedAnnotation(paramName) match {
         case Some(unwrapped) =>
@@ -153,7 +151,12 @@ object AutoProductFormatMacros {
                 (${unwrapped.prefix} + e._1 + ${unwrapped.suffix}) -> e._2
           }.toList"""
         case None =>
-          q"""List($jsonPropertyName -> $toJson)"""
+          val ret = q"""List($jsonPropertyName -> $toJson)"""
+          paramSymbol.typeSignature match {
+            case t if t <:< typeOf[Option[_]] => q"if(obj.${paramSymbol.name}.isDefined) $ret else List.empty"
+            case _ => ret
+          }
+
       }
     }
 
@@ -204,6 +207,7 @@ object AutoProductFormatMacros {
             //FIXME typeSymbol.companion does not work for non-static case classes
             val companion = ttag.typeSymbol.companion
             val defaultMethod = TermName("apply$default$" + (index + 1))
+              //TermName("apply$default$" + (index + 1))
             q"""$convertTree.getOrElse($companion.$defaultMethod)"""
           } else if(paramSymbol.typeSignature <:< typeOf[Option[_]]) {
             q"""$convertTree.getOrElse(None)"""
@@ -220,8 +224,10 @@ object AutoProductFormatMacros {
       q"$pnNamed = $pnFn(jsonFields)"
     }
 
-    val f = c.Expr[JsonFormat[T]](
-    q"""new JsonFormat[$ttag] {
+    val f = c.Expr[RootJsonFormat[T]](
+    q"""new spray.json.RootJsonFormat[$ttag] {
+        import spray.json._
+
          ..$writerDefs
 
          ..$readerDefs
@@ -237,6 +243,8 @@ object AutoProductFormatMacros {
          }
        }
     """)
+
+    println(f)
 
     f
   }

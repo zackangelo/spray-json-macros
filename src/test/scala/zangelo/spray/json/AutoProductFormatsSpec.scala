@@ -4,22 +4,26 @@ import org.specs2.mutable.Specification
 import spray.json._
 import zangelo.spray.json.annotation.{JsonUnwrapped, JsonProperty, JsonPropertyCases, JsonPropertyCase}
 
+
+trait TestObject extends Product
+
 object TestProtocol
   extends DefaultJsonProtocol
-  with AutoProductFormats
+  with AutoProductFormats[TestObject]
 
 //TODO needs to be a top-level class so companion symbol is accessible
-case class TestDefault(a:String = "a", b:Int)
+case class TestDefault(a:String = "a", b:Int) extends TestObject
 
 /**
  * Mostly adapted from spray-json's ProductFormatsSpec
  */
 class AutoProductFormatsSpec extends Specification {
-  case class Test0()
 
-  case class Test2(a:Int, b:Option[Double])
+  case class Test0() extends TestObject
 
-  case class Test3[A, B](as: List[A], bs: List[B])
+  case class Test2(a:Int, b:Option[Double]) extends TestObject
+
+  case class Test3[A, B](as: List[A], bs: List[B]) extends TestObject
 
   case class Test36(a1: String,
                     a2: String,
@@ -56,11 +60,11 @@ class AutoProductFormatsSpec extends Specification {
                     a33: String,
                     a34: String,
                     a35: String,
-                    a36: String)
+                    a36: String) extends TestObject
 
   @SerialVersionUID(1L) // SerialVersionUID adds a static field to the case class
-  case class TestStatic(a: Int, b: Option[Double])
-  case class TestMangled(`foo-bar!`: Int)
+  case class TestStatic(a: Int, b: Option[Double]) extends TestObject
+  case class TestMangled(`foo-bar!`: Int) extends TestObject
 
   "A JsonFormat created with `autoProductFormat`, for a case class with 2 elements," should {
     import TestProtocol._
@@ -87,10 +91,9 @@ class AutoProductFormatsSpec extends Specification {
       JsObject("a" -> JsNumber(42)).convertTo[Test2] mustEqual Test2(42, None)
     }
 
-    //FIXME omit null fields
-//    "not render `None` members during serialization" in {
-//      Test2(42, None).toJson mustEqual JsObject("a" -> JsNumber(42))
-//    }
+    "not render `None` members during serialization" in {
+      Test2(42, None).toJson mustEqual JsObject("a" -> JsNumber(42))
+    }
 
     "ignore additional members during deserialization" in {
       JsObject("a" -> JsNumber(42), "b" -> JsNumber(4.2), "c" -> JsString('no)).convertTo[Test2] mustEqual obj
@@ -146,7 +149,7 @@ class AutoProductFormatsSpec extends Specification {
     "serialize to the correct type parameter" in {
       import TestProtocol._
 
-      case class Box[A](a: A)
+      case class Box[A](a: A) extends TestObject
       Box(42).toJson === JsObject(Map("a" -> JsNumber(42)))
     }
   }
@@ -212,7 +215,7 @@ class AutoProductFormatsSpec extends Specification {
 
   "A JsonFormat created with `autoProductFormat`, for a case class with @JsonProperty annotated members," should {
     import TestProtocol._
-    case class TestAnnotated(@JsonProperty("overridden") a:String, b:Int)
+    case class TestAnnotated(@JsonProperty("overridden") a:String, b:Int) extends TestObject
     val obj = TestAnnotated("a", 42)
     val json = JsObject("overridden" -> JsString("a"), "b" -> JsNumber(42))
 
@@ -245,10 +248,10 @@ class AutoProductFormatsSpec extends Specification {
   "A JsonFormat created with `autoProductFormat`, for a case class with @JsonUnwrapped annotated members," should {
     import TestProtocol._
 
-    case class Nested(c:String, d:Option[Double])
-    case class TestAnnotated(a:String, @JsonUnwrapped b:Nested)
-    case class TestAnnotatedPrefix(a:String, @JsonUnwrapped("pre_") b:Nested)
-    case class TestAnnotatedSuffix(a:String, @JsonUnwrapped("","_suf") b:Nested)
+    case class Nested(c:String, d:Option[Double]) extends TestObject
+    case class TestAnnotated(a:String, @JsonUnwrapped b:Nested) extends TestObject
+    case class TestAnnotatedPrefix(a:String, @JsonUnwrapped("pre_") b:Nested) extends TestObject
+    case class TestAnnotatedSuffix(a:String, @JsonUnwrapped("","_suf") b:Nested) extends TestObject
 
     val obj = TestAnnotated("a", Nested("c", Some(42.0)))
     val objPrefix = TestAnnotatedPrefix("a", Nested("c", Some(42.0)))
@@ -287,10 +290,12 @@ class AutoProductFormatsSpec extends Specification {
   "A JsonFormat created with `autoProductFormat`, for a case class with @JsonPropertyCase annotations," should {
     import TestProtocol._
 
-    case class TestSingleArg(@JsonPropertyCase(JsonPropertyCases.Snakize) twoWordsA:String, twoWordsB:String)
+    case class TestSingleArg(@JsonPropertyCase(JsonPropertyCases.Snakize) twoWordsA:String,
+                             twoWordsB:String)
+      extends TestObject
 
     @JsonPropertyCase(JsonPropertyCases.Snakize)
-    case class TestAllArgs(twoWordsA:String, twoWordsB:String)
+    case class TestAllArgs(twoWordsA:String, twoWordsB:String) extends TestObject
 
     val singleArgObject = TestSingleArg("a", "b")
     val allArgsObject = TestAllArgs("a", "b")
