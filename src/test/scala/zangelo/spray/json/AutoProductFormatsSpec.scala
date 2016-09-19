@@ -4,7 +4,6 @@ import org.specs2.mutable.Specification
 import spray.json._
 import zangelo.spray.json.annotation._
 
-
 trait TestObject extends Product
 
 object TestProtocol
@@ -24,6 +23,8 @@ class AutoProductFormatsSpec extends Specification {
   case class Test2(a:Int, b:Option[Double]) extends TestObject
 
   case class Test3[A, B](as: List[A], bs: List[B]) extends TestObject
+
+  case class TestSeq[A, B](as: Seq[A], bs:Seq[B]) extends TestObject
 
   case class Test36(a1: String,
                     a2: String,
@@ -335,6 +336,18 @@ class AutoProductFormatsSpec extends Specification {
 
     "ignore properties with the @JsonIgnore annotation" in {
       ignoreObject.toJson shouldEqual ignoreJson
+    }
+  }
+
+  "A JsonFormat created with `autoProductFormat`, for a case class with Seq fields," should {
+    import TestProtocol._
+
+    val seqObject = TestSeq(Seq("a", "b", "c"), Seq(1,2,3))
+    val seqJson = JsObject("as" -> JsArray(JsString("a"), JsString("b"), JsString("c")),
+      "bs" -> JsArray(JsNumber(1), JsNumber(2), JsNumber(3)))
+
+    "serialize the Seq fields into a JSON array" in {
+      seqObject.toJson shouldEqual seqJson
     }
   }
 }
