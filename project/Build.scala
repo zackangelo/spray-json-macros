@@ -1,15 +1,19 @@
-import sbt._ 
-import Keys._ 
+import sbt._
+import Keys._
+import bintray.BintrayPlugin.autoImport.{bintrayOmitLicense, bintrayOrganization, bintrayRepository}
 
 object SprayJsonMacrosBuild extends Build { 
 	lazy val commonSettings = Seq(
-		organization := "zangelo", 
+		organization := "com.github.zackangelo",
 		version := "0.0.1", 
 		scalaVersion := "2.11.6",
 		resolvers ++= Seq(
 			"Spray Repo" 			at "http://repo.spray.io",
 			"Spray Nightlies Repo" 	at "http://nightlies.spray.io"
 		),
+		bintrayOrganization := Some("bigcommerce"),
+		bintrayOmitLicense  := true,
+		bintrayRepository   := "mvn-private",
 		libraryDependencies ++= Seq(
 			"io.spray" %% "spray-json" % "1.3.1",
 			"org.scala-lang" % "scala-compiler" % scalaVersion.value,
